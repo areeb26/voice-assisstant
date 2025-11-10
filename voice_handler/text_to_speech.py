@@ -1,12 +1,15 @@
 """
 Text-to-Speech Module
-Converts text to speech using pyttsx3
+Converts text to speech using pyttsx3 with Windows COM workaround
 """
 import pyttsx3
 import logging
 from typing import Optional, List
 import threading
 import queue
+import subprocess
+import sys
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +116,8 @@ class TextToSpeech:
         logger.info("TTS worker thread started")
 
     def _tts_worker(self):
-        """Dedicated TTS worker - processes queue (Windows COM compatible)"""
-        logger.info("TTS worker initializing...")
+        """Dedicated TTS worker - uses subprocess to avoid COM issues"""
+        logger.info("TTS worker ready (subprocess mode)")
 
         try:
             while not self._stop_flag.is_set():
@@ -124,26 +127,10 @@ class TextToSpeech:
 
                     logger.debug(f"TTS worker processing: {text[:30]}...")
 
-                    # Create new engine for EACH speech (Windows COM requirement)
-                    engine = pyttsx3.init()
-                    engine.setProperty('rate', self.rate)
-                    engine.setProperty('volume', self.volume)
-
-                    # Set voice if needed
-                    if language and language != self.default_language:
-                        self._set_voice_for_engine(engine, language)
-
-                    # Speak using this one-time engine
-                    engine.say(text)
-                    engine.runAndWait()
+                    # Speak using subprocess (completely separate process, no COM issues)
+                    self._speak_subprocess(text, language)
 
                     logger.info(f"Spoke: {text[:50]}...")
-
-                    # Cleanup engine
-                    try:
-                        del engine
-                    except:
-                        pass
 
                     self.speech_queue.task_done()
 
@@ -156,6 +143,31 @@ class TextToSpeech:
 
         except Exception as e:
             logger.error(f"Failed TTS worker: {e}", exc_info=True)
+
+    def _speak_subprocess(self, text: str, language: str):
+        """Speak using subprocess to completely avoid COM threading issues"""
+        try:
+            # Create a simple Python script to run pyttsx3 in isolated process
+            script = f"""
+import pyttsx3
+engine = pyttsx3.init()
+engine.setProperty('rate', {self.rate})
+engine.setProperty('volume', {self.volume})
+engine.say({repr(text)})
+engine.runAndWait()
+"""
+            # Run in separate process
+            subprocess.run(
+                [sys.executable, "-c", script],
+                timeout=30,
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+
+        except subprocess.TimeoutExpired:
+            logger.error("TTS subprocess timed out")
+        except Exception as e:
+            logger.error(f"Error in TTS subprocess: {e}", exc_info=True)
 
     def _set_voice_for_engine(self, engine, language: str):
         """Set voice for a specific engine instance"""
