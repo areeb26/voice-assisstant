@@ -105,7 +105,7 @@ class TextToSpeech:
         wait: bool = True
     ) -> bool:
         """
-        Speak text (thread-safe)
+        Speak text (Windows COM-safe - creates engine per thread)
 
         Args:
             text: Text to speak
@@ -115,34 +115,71 @@ class TextToSpeech:
         Returns:
             True if successful
         """
-        if not self.engine:
-            logger.error("TTS engine not initialized")
-            return False
-
         if not text:
             return False
 
         try:
-            with self._engine_lock:
-                # Set voice for language if specified
-                if language and language != self.default_language:
-                    self._set_voice(language)
+            # On Windows, each thread needs its own pyttsx3 engine due to COM threading
+            logger.debug(f"Creating new TTS engine for thread {threading.current_thread().name}")
+            thread_engine = pyttsx3.init()
+            thread_engine.setProperty('rate', self.rate)
+            thread_engine.setProperty('volume', self.volume)
 
-                self.is_speaking = True
+            # Set voice for language
+            if language and language != self.default_language:
+                self._set_voice_for_engine(thread_engine, language)
+            else:
+                # Set default voice
+                self._set_voice_for_engine(thread_engine, self.default_language)
 
-                # Speak
-                self.engine.say(text)
-                self.engine.runAndWait()
+            # Speak
+            logger.debug(f"Speaking in thread {threading.current_thread().name}: {text[:30]}...")
+            thread_engine.say(text)
+            thread_engine.runAndWait()
 
-                self.is_speaking = False
-                logger.info(f"Spoke: {text[:50]}...")
+            logger.info(f"Spoke: {text[:50]}...")
+
+            # Cleanup
+            try:
+                thread_engine.stop()
+            except:
+                pass
 
             return True
 
         except Exception as e:
             logger.error(f"Error speaking: {e}", exc_info=True)
-            self.is_speaking = False
             return False
+
+    def _set_voice_for_engine(self, engine, language: str):
+        """Set voice for a specific engine instance"""
+        try:
+            voices = engine.getProperty('voices')
+
+            voice_keywords = {
+                'en': ['english', 'en_', 'en-'],
+                'ur': ['urdu', 'ur_', 'ur-', 'hindi', 'hi_']
+            }
+
+            keywords = voice_keywords.get(language, voice_keywords['en'])
+
+            for voice in voices:
+                voice_id_lower = voice.id.lower()
+                voice_name_lower = voice.name.lower()
+
+                for keyword in keywords:
+                    if keyword in voice_id_lower or keyword in voice_name_lower:
+                        engine.setProperty('voice', voice.id)
+                        logger.debug(f"Set voice to: {voice.name}")
+                        return
+
+            # Use first available voice if no match found
+            if voices:
+                engine.setProperty('voice', voices[0].id)
+                logger.debug(f"Using default voice: {voices[0].name}")
+
+        except Exception as e:
+            logger.error(f"Error setting voice: {e}")
 
 
     def speak_async(self, text: str, language: Optional[str] = None):
