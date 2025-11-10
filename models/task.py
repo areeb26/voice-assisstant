@@ -3,7 +3,7 @@ Task Model - Manages user tasks and reminders
 """
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
 from sqlalchemy.sql import func
-from ..core.database import Base
+from core.database import Base
 
 
 class Task(Base):

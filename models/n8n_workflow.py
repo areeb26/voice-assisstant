@@ -3,7 +3,7 @@ N8N Workflow Model - Manages N8N workflow executions
 """
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, JSON
 from sqlalchemy.sql import func
-from ..core.database import Base
+from core.database import Base
 
 
 class N8NWorkflow(Base):

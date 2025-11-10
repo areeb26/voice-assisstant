@@ -3,16 +3,16 @@ Main Assistant API - Natural Language Interface
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from ..core.database import get_db
-from ..schemas.assistant import AssistantRequest, AssistantResponse
-from ..schemas.task import TaskCreate
-from ..schemas.file_ops import FileOperationRequest
-from ..modules.nlp_processor import BilingualNLPProcessor
-from ..services.task_manager import TaskManager
-from ..services.file_operations import FileOperationsService
-from ..services.system_commands import SystemCommandsService
-from ..services.n8n_integration import N8NIntegrationService
-from ..services.gemini_service import GeminiService
+from core.database import get_db
+from schemas.assistant import AssistantRequest, AssistantResponse
+from schemas.task import TaskCreate
+from schemas.file_ops import FileOperationRequest
+from modules.nlp_processor import BilingualNLPProcessor
+from services.task_manager import TaskManager
+from services.file_operations import FileOperationsService
+from services.system_commands import SystemCommandsService
+from services.n8n_integration import N8NIntegrationService
+from services.gemini_service import GeminiService
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 

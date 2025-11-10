@@ -5,7 +5,7 @@ Provides AI-powered natural language understanding and response generation
 import google.generativeai as genai
 from typing import Dict, Any, Optional
 import json
-from ..core.config import settings
+from core.config import settings
 
 
 class GeminiService:

@@ -5,8 +5,8 @@ Handles CRUD operations for tasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-from ..models.task import Task
-from ..schemas.task import TaskCreate, TaskUpdate
+from models.task import Task
+from schemas.task import TaskCreate, TaskUpdate
 
 
 class TaskManager:

@@ -4,7 +4,7 @@ WhatsApp API endpoints
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import List
 import logging
-from ..schemas.whatsapp import (
+from schemas.whatsapp import (
     WhatsAppMessageRequest,
     WhatsAppFileRequest,
     WhatsAppScheduleRequest,
@@ -12,7 +12,7 @@ from ..schemas.whatsapp import (
     WhatsAppAuthRequest,
     WhatsAppSessionResponse
 )
-from ..whatsapp_handler import (
+from whatsapp_handler import (
     WhatsAppSelenium,
     WhatsAppSimple,
     SessionManager,

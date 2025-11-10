@@ -4,7 +4,7 @@ User Preference Model - Stores user preferences and settings
 from sqlalchemy import Column, Integer, String, Boolean, Text, JSON
 from sqlalchemy.sql import func
 from sqlalchemy import DateTime
-from ..core.database import Base
+from core.database import Base
 
 
 class UserPreference(Base):

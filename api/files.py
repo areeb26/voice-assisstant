@@ -2,8 +2,8 @@
 File Operations API endpoints
 """
 from fastapi import APIRouter, HTTPException
-from ..schemas.file_ops import FileOperationRequest, FileOperationResponse
-from ..services.file_operations import FileOperationsService
+from schemas.file_ops import FileOperationRequest, FileOperationResponse
+from services.file_operations import FileOperationsService
 from typing import List
 
 router = APIRouter(prefix="/files", tags=["files"])

@@ -5,7 +5,7 @@ Handles webhook triggers and workflow executions
 import httpx
 from typing import Dict, Any, Optional
 from datetime import datetime
-from ..core.config import settings
+from core.config import settings
 
 
 class N8NIntegrationService:

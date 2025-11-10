@@ -2,8 +2,8 @@
 N8N Workflow API endpoints
 """
 from fastapi import APIRouter, HTTPException
-from ..schemas.n8n import N8NWorkflowRequest, N8NWorkflowResponse
-from ..services.n8n_integration import N8NIntegrationService
+from schemas.n8n import N8NWorkflowRequest, N8NWorkflowResponse
+from services.n8n_integration import N8NIntegrationService
 
 router = APIRouter(prefix="/n8n", tags=["n8n"])
 
