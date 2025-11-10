@@ -34,10 +34,14 @@ class TextToSpeech:
         self.volume = volume
         self.is_speaking = False
         self.speech_queue = queue.Queue()
-        self._engine_lock = threading.Lock()  # Thread-safe access to engine
+        self._stop_flag = threading.Event()
+        self._tts_thread = None
 
         # Initialize engine
         self._initialize_engine()
+
+        # Start dedicated TTS thread for Windows COM compatibility
+        self._start_tts_worker()
 
         logger.info(f"Text-to-Speech initialized (language: {language})")
 
@@ -98,58 +102,62 @@ class TextToSpeech:
         except Exception as e:
             logger.error(f"Error setting voice: {e}")
 
-    def speak(
-        self,
-        text: str,
-        language: Optional[str] = None,
-        wait: bool = True
-    ) -> bool:
-        """
-        Speak text (Windows COM-safe - creates engine per thread)
+    def _start_tts_worker(self):
+        """Start dedicated TTS worker thread (Windows COM compatible)"""
+        self._tts_thread = threading.Thread(
+            target=self._tts_worker,
+            daemon=True,
+            name="TTS-Worker"
+        )
+        self._tts_thread.start()
+        logger.info("TTS worker thread started")
 
-        Args:
-            text: Text to speak
-            language: Language code (None for default)
-            wait: Wait for speech to complete
-
-        Returns:
-            True if successful
-        """
-        if not text:
-            return False
+    def _tts_worker(self):
+        """Dedicated TTS worker - processes queue with single engine"""
+        logger.info("TTS worker initializing engine...")
 
         try:
-            # On Windows, each thread needs its own pyttsx3 engine due to COM threading
-            logger.debug(f"Creating new TTS engine for thread {threading.current_thread().name}")
-            thread_engine = pyttsx3.init()
-            thread_engine.setProperty('rate', self.rate)
-            thread_engine.setProperty('volume', self.volume)
+            # Create engine in this dedicated thread
+            worker_engine = pyttsx3.init()
+            worker_engine.setProperty('rate', self.rate)
+            worker_engine.setProperty('volume', self.volume)
 
-            # Set voice for language
-            if language and language != self.default_language:
-                self._set_voice_for_engine(thread_engine, language)
-            else:
-                # Set default voice
-                self._set_voice_for_engine(thread_engine, self.default_language)
+            logger.info("TTS worker engine ready")
 
-            # Speak
-            logger.debug(f"Speaking in thread {threading.current_thread().name}: {text[:30]}...")
-            thread_engine.say(text)
-            thread_engine.runAndWait()
+            while not self._stop_flag.is_set():
+                try:
+                    # Get speech request from queue (with timeout)
+                    text, language = self.speech_queue.get(timeout=0.5)
 
-            logger.info(f"Spoke: {text[:50]}...")
+                    logger.debug(f"TTS worker processing: {text[:30]}...")
+
+                    # Set voice if needed
+                    if language and language != self.default_language:
+                        self._set_voice_for_engine(worker_engine, language)
+
+                    # Speak
+                    worker_engine.say(text)
+                    worker_engine.runAndWait()
+
+                    logger.info(f"Spoke: {text[:50]}...")
+
+                    self.speech_queue.task_done()
+
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"Error in TTS worker: {e}", exc_info=True)
 
             # Cleanup
             try:
-                thread_engine.stop()
+                worker_engine.stop()
             except:
                 pass
 
-            return True
+            logger.info("TTS worker stopped")
 
         except Exception as e:
-            logger.error(f"Error speaking: {e}", exc_info=True)
-            return False
+            logger.error(f"Failed to initialize TTS worker: {e}", exc_info=True)
 
     def _set_voice_for_engine(self, engine, language: str):
         """Set voice for a specific engine instance"""
@@ -170,21 +178,49 @@ class TextToSpeech:
                 for keyword in keywords:
                     if keyword in voice_id_lower or keyword in voice_name_lower:
                         engine.setProperty('voice', voice.id)
-                        logger.debug(f"Set voice to: {voice.name}")
                         return
 
             # Use first available voice if no match found
             if voices:
                 engine.setProperty('voice', voices[0].id)
-                logger.debug(f"Using default voice: {voices[0].name}")
 
         except Exception as e:
             logger.error(f"Error setting voice: {e}")
 
+    def speak(
+        self,
+        text: str,
+        language: Optional[str] = None,
+        wait: bool = True
+    ) -> bool:
+        """
+        Speak text (queues to dedicated TTS worker thread)
+
+        Args:
+            text: Text to speak
+            language: Language code (None for default)
+            wait: Wait for speech to complete (not implemented for async safety)
+
+        Returns:
+            True if queued successfully
+        """
+        if not text:
+            return False
+
+        try:
+            # Queue speech request for worker thread
+            self.speech_queue.put((text, language or self.default_language))
+            logger.debug(f"Queued speech: {text[:30]}...")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error queuing speech: {e}", exc_info=True)
+            return False
+
 
     def speak_async(self, text: str, language: Optional[str] = None):
         """
-        Speak asynchronously (non-blocking) - runs speak() in a new thread
+        Speak asynchronously (non-blocking) - queues to worker thread
 
         Args:
             text: Text to speak
@@ -193,29 +229,31 @@ class TextToSpeech:
         if not text:
             return
 
-        logger.info(f"Starting async speech: {text[:50]}...")
-
-        # Run speak() in a separate thread
-        thread = threading.Thread(
-            target=self.speak,
-            args=(text, language, True),
-            daemon=True,
-            name=f"TTS-Async-{threading.active_count()}"
-        )
-        thread.start()
-        logger.debug(f"Started speech thread: {thread.name}")
+        # Simply queue the speech (non-blocking)
+        self.speak(text, language)
 
 
     def stop(self):
-        """Stop current speech"""
-        if self.engine:
-            try:
-                with self._engine_lock:
-                    self.engine.stop()
-                    self.is_speaking = False
-                logger.info("TTS engine stopped")
-            except Exception as e:
-                logger.error(f"Error stopping speech: {e}", exc_info=True)
+        """Stop TTS worker and clear queue"""
+        try:
+            # Signal worker to stop
+            self._stop_flag.set()
+
+            # Clear queue
+            while not self.speech_queue.empty():
+                try:
+                    self.speech_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+            # Wait for worker to finish
+            if self._tts_thread and self._tts_thread.is_alive():
+                self._tts_thread.join(timeout=2)
+
+            logger.info("TTS stopped")
+
+        except Exception as e:
+            logger.error(f"Error stopping TTS: {e}", exc_info=True)
 
     def set_rate(self, rate: int):
         """
