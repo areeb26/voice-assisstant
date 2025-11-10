@@ -113,17 +113,10 @@ class TextToSpeech:
         logger.info("TTS worker thread started")
 
     def _tts_worker(self):
-        """Dedicated TTS worker - processes queue with single engine"""
-        logger.info("TTS worker initializing engine...")
+        """Dedicated TTS worker - processes queue (Windows COM compatible)"""
+        logger.info("TTS worker initializing...")
 
         try:
-            # Create engine in this dedicated thread
-            worker_engine = pyttsx3.init()
-            worker_engine.setProperty('rate', self.rate)
-            worker_engine.setProperty('volume', self.volume)
-
-            logger.info("TTS worker engine ready")
-
             while not self._stop_flag.is_set():
                 try:
                     # Get speech request from queue (with timeout)
@@ -131,15 +124,26 @@ class TextToSpeech:
 
                     logger.debug(f"TTS worker processing: {text[:30]}...")
 
+                    # Create new engine for EACH speech (Windows COM requirement)
+                    engine = pyttsx3.init()
+                    engine.setProperty('rate', self.rate)
+                    engine.setProperty('volume', self.volume)
+
                     # Set voice if needed
                     if language and language != self.default_language:
-                        self._set_voice_for_engine(worker_engine, language)
+                        self._set_voice_for_engine(engine, language)
 
-                    # Speak
-                    worker_engine.say(text)
-                    worker_engine.runAndWait()
+                    # Speak using this one-time engine
+                    engine.say(text)
+                    engine.runAndWait()
 
                     logger.info(f"Spoke: {text[:50]}...")
+
+                    # Cleanup engine
+                    try:
+                        del engine
+                    except:
+                        pass
 
                     self.speech_queue.task_done()
 
@@ -148,16 +152,10 @@ class TextToSpeech:
                 except Exception as e:
                     logger.error(f"Error in TTS worker: {e}", exc_info=True)
 
-            # Cleanup
-            try:
-                worker_engine.stop()
-            except:
-                pass
-
             logger.info("TTS worker stopped")
 
         except Exception as e:
-            logger.error(f"Failed to initialize TTS worker: {e}", exc_info=True)
+            logger.error(f"Failed TTS worker: {e}", exc_info=True)
 
     def _set_voice_for_engine(self, engine, language: str):
         """Set voice for a specific engine instance"""
