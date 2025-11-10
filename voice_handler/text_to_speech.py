@@ -181,32 +181,43 @@ class TextToSpeech:
 
     def _start_worker_thread(self):
         """Start dedicated TTS worker thread"""
-        self._worker_thread = threading.Thread(
-            target=self._tts_worker,
-            daemon=True
-        )
-        self._worker_thread.start()
-        logger.info("TTS worker thread started")
+        try:
+            self._worker_thread = threading.Thread(
+                target=self._tts_worker,
+                daemon=True,
+                name="TTS-Worker"
+            )
+            self._worker_thread.start()
+            logger.info(f"TTS worker thread started: {self._worker_thread.name}")
+        except Exception as e:
+            logger.error(f"Failed to start TTS worker thread: {e}", exc_info=True)
 
     def _tts_worker(self):
         """Dedicated TTS worker thread - creates its own engine"""
+        logger.info("TTS worker thread started, attempting to initialize engine...")
+
         try:
             # Create engine in this thread
+            logger.debug("Calling pyttsx3.init() in worker thread...")
             worker_engine = pyttsx3.init()
+            logger.debug("pyttsx3.init() succeeded")
+
             worker_engine.setProperty('rate', self.rate)
             worker_engine.setProperty('volume', self.volume)
 
-            logger.info("TTS worker engine initialized")
+            logger.info(f"TTS worker engine initialized successfully (rate={self.rate}, volume={self.volume})")
 
             while not self._stop_worker.is_set():
                 try:
                     text, language = self.speech_queue.get(timeout=0.5)
+                    logger.debug(f"TTS worker got item from queue: {text[:30]}...")
 
                     # Set voice for language if needed
                     if language and language != self.default_language:
                         self._set_voice_for_engine(worker_engine, language)
 
                     # Speak using worker engine
+                    logger.debug(f"About to speak: {text[:30]}...")
                     worker_engine.say(text)
                     worker_engine.runAndWait()
 
@@ -217,14 +228,15 @@ class TextToSpeech:
                 except queue.Empty:
                     continue
                 except Exception as e:
-                    logger.error(f"Error in TTS worker: {e}")
+                    logger.error(f"Error in TTS worker loop: {e}", exc_info=True)
 
             # Cleanup
+            logger.info("TTS worker shutting down...")
             worker_engine.stop()
             logger.info("TTS worker stopped")
 
         except Exception as e:
-            logger.error(f"Failed to initialize TTS worker: {e}")
+            logger.error(f"Failed to initialize TTS worker engine: {e}", exc_info=True)
 
     def _set_voice_for_engine(self, engine, language: str):
         """Set voice for a specific engine instance"""

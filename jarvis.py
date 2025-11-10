@@ -136,6 +136,7 @@ class JarvisAssistant:
         response = loop.run_until_complete(self.process_command(command, language))
         loop.close()
 
+        logger.info(f"Generated response for command '{command}': {response}")
         return response
 
     def start_listening(self):
