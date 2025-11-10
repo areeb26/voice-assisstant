@@ -21,24 +21,24 @@ if gemini.enabled:
     response = gemini.chat("Hello, how are you?", "en")
 
     if response.get("success"):
-        print(f"✅ Success!")
+        print(f"[SUCCESS] Chat test passed!")
         print(f"Response: {response.get('response')}")
     else:
-        print(f"❌ Failed!")
+        print(f"[FAILED] Chat test failed!")
         print(f"Error: {response.get('error')}")
 
     print("\n--- Testing Intent Analysis ---")
     intent_result = gemini.analyze_intent("create a task to buy groceries", "en")
 
     if intent_result.get("success"):
-        print(f"✅ Success!")
+        print(f"[SUCCESS] Intent analysis passed!")
         print(f"Intent: {intent_result.get('intent')}")
         print(f"Confidence: {intent_result.get('confidence')}")
     else:
-        print(f"❌ Failed!")
+        print(f"[FAILED] Intent analysis failed!")
         print(f"Error: {intent_result.get('error')}")
 else:
-    print("\n❌ Gemini is not enabled!")
+    print("\n[ERROR] Gemini is not enabled!")
     print("Check your .env file:")
     print("  USE_GEMINI_AI=True")
     print("  GEMINI_API_KEY=your-api-key-here")
