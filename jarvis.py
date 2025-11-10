@@ -5,6 +5,7 @@ Run this to start voice-controlled assistant with wake word detection
 """
 import asyncio
 import logging
+import time
 from voice_handler import SpeechRecognizer, TextToSpeech, WakeWordDetector, BackgroundListener
 from modules.nlp_processor import BilingualNLPProcessor
 from services.gemini_service import GeminiService
