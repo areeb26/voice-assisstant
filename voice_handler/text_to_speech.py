@@ -34,9 +34,14 @@ class TextToSpeech:
         self.volume = volume
         self.is_speaking = False
         self.speech_queue = queue.Queue()
+        self._stop_worker = threading.Event()
+        self._worker_thread = None
 
         # Initialize engine
         self._initialize_engine()
+
+        # Start dedicated TTS worker thread
+        self._start_worker_thread()
 
         logger.info(f"Text-to-Speech initialized (language: {language})")
 
@@ -167,30 +172,102 @@ class TextToSpeech:
             text: Text to speak
             language: Language code
         """
-        self.speech_queue.put((text, language))
+        if not text:
+            return
 
-        # Start queue processor if not running
-        if not hasattr(self, '_queue_thread') or not self._queue_thread.is_alive():
-            self._queue_thread = threading.Thread(
-                target=self._process_speech_queue,
-                daemon=True
-            )
-            self._queue_thread.start()
+        # Add to queue - worker thread will process it
+        self.speech_queue.put((text, language))
+        logger.debug(f"Added to speech queue: {text[:50]}...")
+
+    def _start_worker_thread(self):
+        """Start dedicated TTS worker thread"""
+        self._worker_thread = threading.Thread(
+            target=self._tts_worker,
+            daemon=True
+        )
+        self._worker_thread.start()
+        logger.info("TTS worker thread started")
+
+    def _tts_worker(self):
+        """Dedicated TTS worker thread - creates its own engine"""
+        try:
+            # Create engine in this thread
+            worker_engine = pyttsx3.init()
+            worker_engine.setProperty('rate', self.rate)
+            worker_engine.setProperty('volume', self.volume)
+
+            logger.info("TTS worker engine initialized")
+
+            while not self._stop_worker.is_set():
+                try:
+                    text, language = self.speech_queue.get(timeout=0.5)
+
+                    # Set voice for language if needed
+                    if language and language != self.default_language:
+                        self._set_voice_for_engine(worker_engine, language)
+
+                    # Speak using worker engine
+                    worker_engine.say(text)
+                    worker_engine.runAndWait()
+
+                    logger.info(f"Spoke: {text[:50]}...")
+
+                    self.speech_queue.task_done()
+
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"Error in TTS worker: {e}")
+
+            # Cleanup
+            worker_engine.stop()
+            logger.info("TTS worker stopped")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize TTS worker: {e}")
+
+    def _set_voice_for_engine(self, engine, language: str):
+        """Set voice for a specific engine instance"""
+        try:
+            voices = engine.getProperty('voices')
+
+            voice_keywords = {
+                'en': ['english', 'en_', 'en-'],
+                'ur': ['urdu', 'ur_', 'ur-', 'hindi', 'hi_']
+            }
+
+            keywords = voice_keywords.get(language, voice_keywords['en'])
+
+            for voice in voices:
+                voice_id_lower = voice.id.lower()
+                voice_name_lower = voice.name.lower()
+
+                for keyword in keywords:
+                    if keyword in voice_id_lower or keyword in voice_name_lower:
+                        engine.setProperty('voice', voice.id)
+                        return
+
+            # Use first available voice if no match found
+            if voices:
+                engine.setProperty('voice', voices[0].id)
+
+        except Exception as e:
+            logger.error(f"Error setting voice: {e}")
 
     def _process_speech_queue(self):
-        """Process speech queue"""
-        while True:
-            try:
-                text, language = self.speech_queue.get(timeout=1)
-                self.speak(text, language=language, wait=True)
-                self.speech_queue.task_done()
-            except queue.Empty:
-                break
-            except Exception as e:
-                logger.error(f"Error processing speech queue: {e}")
+        """DEPRECATED: Use _tts_worker instead"""
+        logger.warning("_process_speech_queue is deprecated")
 
     def stop(self):
-        """Stop current speech"""
+        """Stop current speech and shutdown worker"""
+        # Signal worker to stop
+        self._stop_worker.set()
+
+        # Wait for worker thread to finish
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=2)
+
+        # Stop main engine if exists
         if self.engine:
             try:
                 self.engine.stop()
@@ -323,8 +400,7 @@ class TextToSpeech:
 
     def __del__(self):
         """Cleanup"""
-        if self.engine:
-            try:
-                self.engine.stop()
-            except:
-                pass
+        try:
+            self.stop()
+        except:
+            pass
