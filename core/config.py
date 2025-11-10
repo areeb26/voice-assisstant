@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     LEARNING_VOICE_RECOGNITION_THRESHOLD: float = 0.75  # Min confidence for voice recognition
 
     class Config:
-        env_file = "ai-assistant/.env"
+        env_file = ".env"
         case_sensitive = True
 
 
