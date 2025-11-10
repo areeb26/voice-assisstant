@@ -3,7 +3,7 @@ File Operation Model - Tracks file operations performed by the assistant
 """
 from sqlalchemy import Column, Integer, String, DateTime, Text, BigInteger
 from sqlalchemy.sql import func
-from ..core.database import Base
+from core.database import Base
 
 
 class FileOperation(Base):

@@ -5,7 +5,7 @@ Executes system commands with safety checks
 import subprocess
 import shlex
 from typing import Dict, Any, List
-from ..core.config import settings
+from core.config import settings
 
 
 class SystemCommandsService:

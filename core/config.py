@@ -69,6 +69,9 @@ class Settings(BaseSettings):
 
     # AI/NLP Settings
     USE_LOCAL_NLP: bool = True
+    USE_GEMINI_AI: bool = True
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     OPENAI_API_KEY: str = ""  # Optional for enhanced NLP
 
     # WhatsApp Integration
@@ -106,7 +109,7 @@ class Settings(BaseSettings):
     LEARNING_VOICE_RECOGNITION_THRESHOLD: float = 0.75  # Min confidence for voice recognition
 
     class Config:
-        env_file = "ai-assistant/.env"
+        env_file = ".env"
         case_sensitive = True
 
 

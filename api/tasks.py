@@ -4,9 +4,9 @@ Task API endpoints
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ..core.database import get_db
-from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse
-from ..services.task_manager import TaskManager
+from core.database import get_db
+from schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from services.task_manager import TaskManager
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 

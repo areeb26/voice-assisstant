@@ -195,24 +195,32 @@ class BackgroundListener:
 
             # Acknowledge
             if self.response_enabled:
+                logger.debug("Sending 'Processing...' to TTS queue")
                 self.tts.speak_async(
                     "Processing..." if language == 'en' else "پروسیس کر رہا ہوں...",
                     language=language
                 )
 
             # Execute command callback
+            logger.debug(f"Calling command callback for: {command}")
             response = self.command_callback(command, language)
+            logger.info(f"Command callback returned: {response}")
 
             self.command_count += 1
 
             # Speak response
             if response and self.response_enabled:
+                logger.info(f"Sending response to TTS queue: {response[:50]}...")
                 self.tts.speak_async(response, language=language)
+            elif not response:
+                logger.warning("Command callback returned empty/None response!")
+            elif not self.response_enabled:
+                logger.info("Response not spoken (response_enabled=False)")
 
             logger.info(f"Command processed successfully")
 
         except Exception as e:
-            logger.error(f"Error processing command: {e}")
+            logger.error(f"Error processing command: {e}", exc_info=True)
 
             if self.response_enabled:
                 self.tts.speak_async(

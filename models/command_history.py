@@ -3,7 +3,7 @@ Command History Model - Tracks all executed commands
 """
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.sql import func
-from ..core.database import Base
+from core.database import Base
 
 
 class CommandHistory(Base):

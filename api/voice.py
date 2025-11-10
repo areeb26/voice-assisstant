@@ -8,7 +8,7 @@ import logging
 import os
 import tempfile
 
-from ..schemas.voice import (
+from schemas.voice import (
     VoiceCommandRequest,
     VoiceCommandResponse,
     VoiceSpeakRequest,
@@ -20,14 +20,14 @@ from ..schemas.voice import (
     VoiceDevicesResponse,
     VoiceTestResponse
 )
-from ..voice_handler import (
+from voice_handler import (
     SpeechRecognizer,
     TextToSpeech,
     WakeWordDetector,
     BackgroundListener
 )
-from ..voice_handler.background_listener import VoiceCommandHandler
-from ..voice_handler.utils import get_audio_devices, check_microphone_access
+from voice_handler.background_listener import VoiceCommandHandler
+from voice_handler.utils import get_audio_devices, check_microphone_access
 
 logger = logging.getLogger(__name__)
 
