@@ -46,34 +46,54 @@ class JarvisAssistant:
         Returns:
             Response text
         """
-        logger.info(f"Processing command: {command}")
+        try:
+            logger.info(f"[JARVIS] Processing command: {command}")
 
-        # First try local NLP
-        nlp_result = self.nlp.process(command, language)
+            # First try local NLP
+            logger.debug(f"[JARVIS] Running NLP processor...")
+            nlp_result = self.nlp.process(command, language)
+            logger.debug(f"[JARVIS] NLP result: intent={nlp_result.get('intent')}, confidence={nlp_result.get('confidence')}")
 
-        # Enhance with Gemini AI if available
-        nlp_result = self.gemini.enhance_nlp_result(
-            nlp_result,
-            command,
-            language
-        )
+            # Enhance with Gemini AI if available
+            logger.debug(f"[JARVIS] Enhancing with Gemini AI...")
+            nlp_result = self.gemini.enhance_nlp_result(
+                nlp_result,
+                command,
+                language
+            )
 
-        intent = nlp_result.get("intent", "unknown")
+            intent = nlp_result.get("intent", "unknown")
+            logger.info(f"[JARVIS] Detected intent: {intent}")
 
-        # Handle different intents
-        if intent == "create_task":
-            return await self._handle_task_creation(nlp_result)
-        elif intent == "list_tasks":
-            return await self._handle_list_tasks()
-        elif intent == "unknown":
-            # Use Gemini for general chat
-            response = self.gemini.chat(command, language)
-            if response.get("success"):
-                return response.get("response", "I'm not sure how to help with that.")
+            # Handle different intents
+            if intent == "create_task":
+                logger.debug(f"[JARVIS] Handling task creation...")
+                return await self._handle_task_creation(nlp_result)
+            elif intent == "list_tasks":
+                logger.debug(f"[JARVIS] Handling list tasks...")
+                return await self._handle_list_tasks()
+            elif intent == "unknown":
+                # Use Gemini for general chat
+                logger.debug(f"[JARVIS] Using Gemini chat for unknown intent...")
+                response = self.gemini.chat(command, language)
+                logger.debug(f"[JARVIS] Gemini chat response: success={response.get('success')}")
+
+                if response.get("success"):
+                    response_text = response.get("response", "I'm not sure how to help with that.")
+                    logger.info(f"[JARVIS] Returning Gemini response: {response_text[:50]}...")
+                    return response_text
+                else:
+                    logger.warning(f"[JARVIS] Gemini chat failed: {response.get('error')}")
+                    return "I'm not sure how to help with that, sir."
             else:
-                return "I'm not sure how to help with that, sir."
-        else:
-            return self.gemini.generate_response(intent, language)
+                logger.debug(f"[JARVIS] Generating response for intent: {intent}")
+                response_text = self.gemini.generate_response(intent, language)
+                logger.info(f"[JARVIS] Generated response: {response_text[:50]}...")
+                return response_text
+
+        except Exception as e:
+            logger.error(f"[JARVIS] Error in process_command: {e}", exc_info=True)
+            return f"Sorry sir, I encountered an error: {str(e)}"
 
     async def _handle_task_creation(self, nlp_result: dict) -> str:
         """Handle task creation"""
@@ -130,14 +150,25 @@ class JarvisAssistant:
         Returns:
             Response text
         """
-        # Run async function in sync context
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(self.process_command(command, language))
-        loop.close()
+        try:
+            logger.info(f"[HANDLER] voice_command_handler called with command='{command}', language='{language}'")
 
-        logger.info(f"Generated response for command '{command}': {response}")
-        return response
+            # Run async function in sync context
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            logger.debug(f"[HANDLER] Created new event loop, running process_command...")
+
+            response = loop.run_until_complete(self.process_command(command, language))
+
+            logger.debug(f"[HANDLER] process_command completed")
+            loop.close()
+
+            logger.info(f"[HANDLER] Generated response for command '{command}': {response}")
+            return response
+
+        except Exception as e:
+            logger.error(f"[HANDLER] Error in voice_command_handler: {e}", exc_info=True)
+            return f"Error processing command: {str(e)}"
 
     def start_listening(self):
         """Start background voice listener"""
