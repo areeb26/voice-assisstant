@@ -8,9 +8,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import os
 
-from .core.config import settings
-from .core.database import init_db
-from .api import tasks, assistant, files, n8n, whatsapp, voice, learning
+from core.config import settings
+from core.database import init_db
+from api import tasks, assistant, files, n8n, whatsapp, voice, learning
 
 # Initialize database
 init_db()
