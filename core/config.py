@@ -69,6 +69,9 @@ class Settings(BaseSettings):
 
     # AI/NLP Settings
     USE_LOCAL_NLP: bool = True
+    USE_GEMINI_AI: bool = True
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     OPENAI_API_KEY: str = ""  # Optional for enhanced NLP
 
     # WhatsApp Integration

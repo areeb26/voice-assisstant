@@ -12,11 +12,13 @@ from ..services.task_manager import TaskManager
 from ..services.file_operations import FileOperationsService
 from ..services.system_commands import SystemCommandsService
 from ..services.n8n_integration import N8NIntegrationService
+from ..services.gemini_service import GeminiService
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
-# Initialize NLP processor
+# Initialize NLP processor and Gemini service
 nlp = BilingualNLPProcessor()
+gemini_service = GeminiService()
 
 
 @router.post("/", response_model=AssistantResponse)
@@ -29,6 +31,13 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
     """
     # Process the natural language input
     nlp_result = nlp.process(request.message, request.language)
+
+    # Enhance with Gemini AI if available
+    nlp_result = gemini_service.enhance_nlp_result(
+        nlp_result,
+        request.message,
+        request.language
+    )
 
     intent = nlp_result["intent"]
     entities = nlp_result["entities"]
@@ -56,12 +65,22 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
                 "task_id": task.id,
                 "title": task.title
             })
-            response_message = nlp.generate_response("create_task", language)
+            response_message = gemini_service.generate_response(
+                "create_task",
+                language,
+                context={"task_title": task.title},
+                action_result={"success": True, "task_id": task.id}
+            )
 
         elif intent == "list_tasks":
             task_manager = TaskManager(db)
             tasks = task_manager.get_all_tasks(language=language)
-            response_message = nlp.generate_response("list_tasks", language)
+            response_message = gemini_service.generate_response(
+                "list_tasks",
+                language,
+                context={"task_count": len(tasks)},
+                action_result={"success": True, "tasks": len(tasks)}
+            )
             actions_taken.append({
                 "action": "tasks_listed",
                 "count": len(tasks),
@@ -81,7 +100,12 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
                     task = task_manager.complete_task(task.id)
 
             if task:
-                response_message = nlp.generate_response("complete_task", language)
+                response_message = gemini_service.generate_response(
+                    "complete_task",
+                    language,
+                    context={"task_title": task.title},
+                    action_result={"success": True}
+                )
                 actions_taken.append({"action": "task_completed", "task_id": task.id})
             else:
                 success = False
@@ -98,7 +122,12 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
                 if intent == "file_create":
                     result = file_service.create_file(file_path)
                     if result["success"]:
-                        response_message = nlp.generate_response("file_create", language)
+                        response_message = gemini_service.generate_response(
+                            "file_create",
+                            language,
+                            context={"file_path": file_path},
+                            action_result=result
+                        )
                         actions_taken.append({"action": "file_created", "path": result["file_path"]})
                     else:
                         success = False
@@ -107,7 +136,12 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
                 elif intent == "file_read":
                     result = file_service.read_file(file_path)
                     if result["success"]:
-                        response_message = nlp.generate_response("file_read", language)
+                        response_message = gemini_service.generate_response(
+                            "file_read",
+                            language,
+                            context={"file_path": file_path},
+                            action_result=result
+                        )
                         actions_taken.append({
                             "action": "file_read",
                             "path": result["file_path"],
@@ -127,7 +161,12 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
             else:
                 result = cmd_service.execute_command(command)
                 if result["success"]:
-                    response_message = nlp.generate_response("execute_command", language)
+                    response_message = gemini_service.generate_response(
+                        "execute_command",
+                        language,
+                        context={"command": command},
+                        action_result=result
+                    )
                     actions_taken.append({
                         "action": "command_executed",
                         "command": command,
@@ -150,7 +189,12 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
                     {"message": request.message, "language": language}
                 )
                 if result["success"]:
-                    response_message = nlp.generate_response("trigger_n8n", language)
+                    response_message = gemini_service.generate_response(
+                        "trigger_n8n",
+                        language,
+                        context={"workflow_name": workflow_name},
+                        action_result=result
+                    )
                     actions_taken.append({
                         "action": "workflow_triggered",
                         "workflow": workflow_name
@@ -160,12 +204,18 @@ async def process_command(request: AssistantRequest, db: Session = Depends(get_d
                     response_message = result["error"]
 
         else:
-            response_message = nlp.generate_response("unknown", language)
+            response_message = gemini_service.generate_response("unknown", language)
             success = False
 
     except Exception as e:
         success = False
-        response_message = nlp.generate_response("error", language).format(error=str(e))
+        error_response = gemini_service.generate_response(
+            "error",
+            language,
+            context={"error": str(e)},
+            action_result={"success": False, "error": str(e)}
+        )
+        response_message = error_response if error_response else f"Error: {str(e)}"
 
     return AssistantResponse(
         message=response_message,
